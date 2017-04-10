@@ -19,20 +19,14 @@
 ******************************************************************************************/
 
 #include "sensel.h"
-#include <SoftwareSerial.h>
 
-#define DEBUG_SERIAL Serial
-
-#if not defined(HAVE_HWSERIAL1)
-SoftwareSerial SENSEL_SERIAL(10, 11);
-#else
 #define SENSEL_SERIAL Serial1
-#endif
+#define DEBUG_SERIAL Serial
 
 bool sensel_ready = false;
 
 byte rx_buf[256];
-int counter = 0;
+unsigned int counter = 0;
 SenselContact c[16];
 
 void senselInit()
@@ -94,9 +88,8 @@ unsigned int _convertBytesTo16(byte b0, byte b1)
 
 void _senselFlush()
 {
-  DEBUG_SERIAL.println("FLUSH");
   while(SENSEL_SERIAL.available() > 0) {
-  char t = SENSEL_SERIAL.read();
+    SENSEL_SERIAL.read();
   delay(1);
   }
   SENSEL_SERIAL.flush();
@@ -124,7 +117,6 @@ byte senselReadContacts()
   SENSEL_SERIAL.write((byte)0x00);
   byte num_contacts = 0;
   int i;
-  byte resp_checksum;
   int contact_size = 16;
   int timeout = 20;
   while(counter < 5 && timeout > 0){
@@ -133,22 +125,29 @@ byte senselReadContacts()
     timeout--;
   }
   if(timeout == 0 || rx_buf[0] != SENSEL_PT_RVS_ACK){
+    DEBUG_SERIAL.print(rx_buf[0]);
+    DEBUG_SERIAL.print(" 1 ");
+    DEBUG_SERIAL.println(counter);
     _senselFlush();
     return 0;
   }
   unsigned int resp_size = _convertBytesTo16(rx_buf[3], rx_buf[4]);
-  timeout = 20;
+  timeout = 50;
   while(counter < resp_size+6 && timeout > 0){
     senselReadAvailable();
     delay(1);
     timeout--;
   }
   if(timeout == 0){
+    //DEBUG_SERIAL.println("FLUSH1");
+    DEBUG_SERIAL.print(counter);
+    DEBUG_SERIAL.print(" 2 ");
+    DEBUG_SERIAL.println(resp_size);
     _senselFlush();
     return 0;
   }
   num_contacts = rx_buf[12];
-  if(rx_buf[5] == SENSEL_REG_CONTACTS_FLAG && num_contacts*contact_size == resp_size-8){
+  if(rx_buf[5] == SENSEL_REG_CONTACTS_FLAG && (unsigned int)(num_contacts*contact_size) == resp_size-8){
     DEBUG_SERIAL.print("Num Contacts: ");
     DEBUG_SERIAL.println(num_contacts);
     for(i = 0; i < num_contacts; i++){
