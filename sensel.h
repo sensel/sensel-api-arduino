@@ -21,6 +21,10 @@
 #ifndef SENSEL_H
 #define SENSEL_H
 
+#define SenselSerial Serial1
+#define SenselDebugSerial Serial
+#define SENSEL_RX_BUFFER_SIZE 512
+
 typedef struct __attribute__((__packed__))
 {
     byte id;
@@ -34,9 +38,11 @@ typedef struct __attribute__((__packed__))
     float minor_axis;
 } SenselContact;
 
-const byte SENSEL_REG_FRAME_CONTENT_CONTROL = 0x24;
-const byte SENSEL_REG_SCAN_ENABLED = 0x25;
-const byte SENSEL_REG_FRAME = 0x26;
+typedef struct __attribute__((__packed__))
+{
+  byte n_contacts;
+  SenselContact contacts[16];
+}SenselFrame;
 
 const byte SENSEL_REG_CONTACTS_FLAG = 0x04;
 
@@ -48,5 +54,6 @@ const byte SENSEL_EVENT_CONTACT_INVALID = 0;
 const byte SENSEL_EVENT_CONTACT_START = 1;
 const byte SENSEL_EVENT_CONTACT_MOVE = 2;
 const byte SENSEL_EVENT_CONTACT_END = 3;
+
 
 #endif

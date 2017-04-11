@@ -18,10 +18,20 @@
 * DEALINGS IN THE SOFTWARE.
 ******************************************************************************************/
 
+#include "sensel.h"
+
+SenselFrame frame;
+bool sensel_ready = false;
+
 void setup() {
   senselInit();
+  sensel_ready = true;
 }
 
 void loop() {
-  senselReadContacts();
+  if(sensel_ready)
+  {
+    senselReadContacts(&frame);
+    senselPrintContacts(&frame);
+  }
 }

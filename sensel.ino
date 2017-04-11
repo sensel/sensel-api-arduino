@@ -19,25 +19,23 @@
 ******************************************************************************************/
 
 #include "sensel.h"
+#include "sensel_register_map.h"
 
-#define SENSEL_SERIAL Serial1
-#define DEBUG_SERIAL Serial
-
-bool sensel_ready = false;
-
-byte rx_buf[256];
+byte rx_buf[SENSEL_RX_BUFFER_SIZE];
 unsigned int counter = 0;
-SenselContact c[16];
 
 void senselInit()
 {
-  DEBUG_SERIAL.begin(115200);
-  SENSEL_SERIAL.begin(115200);
+  SenselSerial.begin(115200);
+  #ifdef SenselDebugSerial
+    SenselDebugSerial.begin(115200);
+  #endif
   delay(3000);
   senselSetFrameContentControl(SENSEL_REG_CONTACTS_FLAG);
   senselStartScanning();
-  DEBUG_SERIAL.println("Sensel Setup Complete!");
-  sensel_ready = true;
+  #ifdef SenselDebugSerial
+    SenselDebugSerial.println("Sensel Setup Complete!");
+  #endif
 }
 
 void senselSetFrameContentControl(byte content)
@@ -56,24 +54,45 @@ void senselStopScanning()
 }
 
 void senselReadAvailable() {
-  int len = SENSEL_SERIAL.available();
+  int len = SenselSerial.available();
   if (len > 0) {
-    SENSEL_SERIAL.readBytes(&rx_buf[counter%256], len);
+    SenselSerial.readBytes(&rx_buf[counter%256], len);
     counter = (counter + len);
   }
 }
 
 void senselWriteReg(byte addr, byte sizeVar, byte data)
 {
-  SENSEL_SERIAL.write(0x01);
-  SENSEL_SERIAL.write(addr);
-  SENSEL_SERIAL.write(sizeVar);
-  SENSEL_SERIAL.write(data);
-  SENSEL_SERIAL.write(data);
-  SENSEL_SERIAL.readBytes(rx_buf, 2);
+  SenselSerial.write(0x01);
+  SenselSerial.write(addr);
+  SenselSerial.write(sizeVar);
+  SenselSerial.write(data);
+  SenselSerial.write(data);
+  SenselSerial.readBytes(rx_buf, 2);
   if (rx_buf[0] != SENSEL_PT_WRITE_ACK) {
-    DEBUG_SERIAL.print("FAILED TO RECEIVE ACK ON WRITE");
+    #ifdef SenselDebugSerial
+      SenselDebugSerial.println("FAILED TO RECEIVE ACK ON WRITE");
+    #endif
   }
+}
+
+void senselReadReg(byte addr, byte sizeVar, byte* buf)
+{
+  byte checksum = 0;
+  SenselSerial.write(0x81);
+  SenselSerial.write(addr);
+  SenselSerial.write(sizeVar);
+  SenselSerial.readBytes(rx_buf, 4);
+  if (rx_buf[0] != SENSEL_PT_READ_ACK) {
+    #ifdef SenselDebugSerial
+      SenselDebugSerial.println("FAILED TO RECEIVE ACK ON READ");
+    #endif
+    _senselFlush();
+    return;
+  }
+  unsigned int resp_size = _convertBytesTo16(rx_buf[2], rx_buf[3]);
+  SenselSerial.readBytes(buf, resp_size);
+  SenselSerial.readBytes(&checksum, 1);
 }
 
 unsigned long _convertBytesTo32(byte b0, byte b1, byte b2, byte b3)
@@ -88,34 +107,21 @@ unsigned int _convertBytesTo16(byte b0, byte b1)
 
 void _senselFlush()
 {
-  while(SENSEL_SERIAL.available() > 0) {
-    SENSEL_SERIAL.read();
+  while(SenselSerial.available() > 0) {
+    SenselSerial.read();
   delay(1);
   }
-  SENSEL_SERIAL.flush();
-}
-
-void senselContactPrint(int index){
-  DEBUG_SERIAL.print("Contact ");
-  DEBUG_SERIAL.print(c[index].id);
-  DEBUG_SERIAL.print(": x_pos ");
-  DEBUG_SERIAL.print(c[index].x_pos);
-  DEBUG_SERIAL.print(" y_pos ");
-  DEBUG_SERIAL.print(c[index].y_pos);
-  DEBUG_SERIAL.print(" total_force ");
-  DEBUG_SERIAL.println(c[index].total_force);
+  SenselSerial.flush();
 }
 
 //Return the number of contacts
-byte senselReadContacts()
+void senselReadContacts(SenselFrame *frame)
 {
   counter = 0;
-  if(!sensel_ready)
-    return 0;
-  SENSEL_SERIAL.write(0x81);
-  SENSEL_SERIAL.write(SENSEL_REG_FRAME);
-  SENSEL_SERIAL.write((byte)0x00);
-  byte num_contacts = 0;
+  SenselSerial.write(0x81);
+  SenselSerial.write(SENSEL_REG_SCAN_READ_FRAME);
+  SenselSerial.write((byte)0x00);
+  frame->n_contacts = 0;
   int i;
   int contact_size = 16;
   int timeout = 20;
@@ -125,11 +131,8 @@ byte senselReadContacts()
     timeout--;
   }
   if(timeout == 0 || rx_buf[0] != SENSEL_PT_RVS_ACK){
-    DEBUG_SERIAL.print(rx_buf[0]);
-    DEBUG_SERIAL.print(" 1 ");
-    DEBUG_SERIAL.println(counter);
     _senselFlush();
-    return 0;
+    return;
   }
   unsigned int resp_size = _convertBytesTo16(rx_buf[3], rx_buf[4]);
   timeout = 50;
@@ -139,35 +142,43 @@ byte senselReadContacts()
     timeout--;
   }
   if(timeout == 0){
-    //DEBUG_SERIAL.println("FLUSH1");
-    DEBUG_SERIAL.print(counter);
-    DEBUG_SERIAL.print(" 2 ");
-    DEBUG_SERIAL.println(resp_size);
     _senselFlush();
-    return 0;
+    return;
   }
-  num_contacts = rx_buf[12];
-  if(rx_buf[5] == SENSEL_REG_CONTACTS_FLAG && (unsigned int)(num_contacts*contact_size) == resp_size-8){
-    DEBUG_SERIAL.print("Num Contacts: ");
-    DEBUG_SERIAL.println(num_contacts);
-    for(i = 0; i < num_contacts; i++){
+  frame->n_contacts = rx_buf[12];
+  if(rx_buf[5] == SENSEL_REG_CONTACTS_FLAG && (unsigned int)(frame->n_contacts*contact_size) == resp_size-8){
+    for(i = 0; i < frame->n_contacts; i++){
       int offset = 13+i*contact_size;
-      c[i].id = rx_buf[offset+0];
-      c[i].type = rx_buf[offset+1];
-      c[i].x_pos = _convertBytesTo16(rx_buf[offset+2],rx_buf[offset+3])/256.0f;
-      c[i].y_pos = _convertBytesTo16(rx_buf[offset+4],rx_buf[offset+5])/256.0f;
-      c[i].total_force = _convertBytesTo16(rx_buf[offset+6],rx_buf[offset+7])/256.0f;
-      c[i].area = _convertBytesTo16(rx_buf[offset+8],rx_buf[offset+9])/256.0f;
-      c[i].orientation = _convertBytesTo16(rx_buf[offset+10],rx_buf[offset+11])/16.0f;
-      c[i].major_axis = _convertBytesTo16(rx_buf[offset+12],rx_buf[offset+13])/256.0f;
-      c[i].minor_axis = _convertBytesTo16(rx_buf[offset+14],rx_buf[offset+15])/256.0f;
-      senselContactPrint(i);
+      frame->contacts[i].id = rx_buf[offset+0];
+      frame->contacts[i].type = rx_buf[offset+1];
+      frame->contacts[i].x_pos = _convertBytesTo16(rx_buf[offset+2],rx_buf[offset+3])/256.0f;
+      frame->contacts[i].y_pos = _convertBytesTo16(rx_buf[offset+4],rx_buf[offset+5])/256.0f;
+      frame->contacts[i].total_force = _convertBytesTo16(rx_buf[offset+6],rx_buf[offset+7])/256.0f;
+      frame->contacts[i].area = _convertBytesTo16(rx_buf[offset+8],rx_buf[offset+9])/256.0f;
+      frame->contacts[i].orientation = _convertBytesTo16(rx_buf[offset+10],rx_buf[offset+11])/16.0f;
+      frame->contacts[i].major_axis = _convertBytesTo16(rx_buf[offset+12],rx_buf[offset+13])/256.0f;
+      frame->contacts[i].minor_axis = _convertBytesTo16(rx_buf[offset+14],rx_buf[offset+15])/256.0f;
     }
   }
   else{
     _senselFlush();
-    return 0;
   }
-  return num_contacts;
+}
+
+void senselPrintContacts(SenselFrame *frame){
+  #ifdef SenselDebugSerial
+    SenselDebugSerial.print("Num Contacts: ");
+    SenselDebugSerial.println(frame->n_contacts);
+    for(int i = 0; i < frame->n_contacts; i++){
+      SenselDebugSerial.print("Contact ");
+      SenselDebugSerial.print(frame->contacts[i].id);
+      SenselDebugSerial.print(": x_pos ");
+      SenselDebugSerial.print(frame->contacts[i].x_pos);
+      SenselDebugSerial.print(" y_pos ");
+      SenselDebugSerial.print(frame->contacts[i].y_pos);
+      SenselDebugSerial.print(" total_force ");
+      SenselDebugSerial.println(frame->contacts[i].total_force);
+    }
+  #endif
 }
 
