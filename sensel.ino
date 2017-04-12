@@ -90,19 +90,24 @@ void senselReadReg(byte addr, byte sizeVar, byte* buf)
     _senselFlush();
     return;
   }
-  unsigned int resp_size = _convertBytesTo16(rx_buf[2], rx_buf[3]);
+  unsigned int resp_size = _convertBytesToU16(rx_buf[2], rx_buf[3]);
   SenselSerial.readBytes(buf, resp_size);
   SenselSerial.readBytes(&checksum, 1);
 }
 
-unsigned long _convertBytesTo32(byte b0, byte b1, byte b2, byte b3)
+unsigned long _convertBytesToU32(byte b0, byte b1, byte b2, byte b3)
 {
   return ((((unsigned long)b3) & 0xff) << 24) | ((((unsigned long)b2) & 0xff) << 16) | ((((unsigned long)b1) & 0xff) << 8) | (((unsigned long)b0) & 0xff);
 }
 
-unsigned int _convertBytesTo16(byte b0, byte b1)
+unsigned int _convertBytesToU16(byte b0, byte b1)
 {
   return ((((unsigned int)b1) & 0xff) << 8) | (((unsigned int)b0) & 0xff);
+}
+
+int _convertBytesToS16(byte b0, byte b1)
+{
+  return ((((int)b1)) << 8) | (((int)b0) & 0xff);
 }
 
 void _senselFlush()
@@ -134,7 +139,7 @@ void senselReadContacts(SenselFrame *frame)
     _senselFlush();
     return;
   }
-  unsigned int resp_size = _convertBytesTo16(rx_buf[3], rx_buf[4]);
+  unsigned int resp_size = _convertBytesToU16(rx_buf[3], rx_buf[4]);
   timeout = 50;
   while(counter < resp_size+6 && timeout > 0){
     senselReadAvailable();
@@ -151,13 +156,13 @@ void senselReadContacts(SenselFrame *frame)
       int offset = 13+i*contact_size;
       frame->contacts[i].id = rx_buf[offset+0];
       frame->contacts[i].type = rx_buf[offset+1];
-      frame->contacts[i].x_pos = _convertBytesTo16(rx_buf[offset+2],rx_buf[offset+3])/256.0f;
-      frame->contacts[i].y_pos = _convertBytesTo16(rx_buf[offset+4],rx_buf[offset+5])/256.0f;
-      frame->contacts[i].total_force = _convertBytesTo16(rx_buf[offset+6],rx_buf[offset+7])/256.0f;
-      frame->contacts[i].area = _convertBytesTo16(rx_buf[offset+8],rx_buf[offset+9])/256.0f;
-      frame->contacts[i].orientation = _convertBytesTo16(rx_buf[offset+10],rx_buf[offset+11])/16.0f;
-      frame->contacts[i].major_axis = _convertBytesTo16(rx_buf[offset+12],rx_buf[offset+13])/256.0f;
-      frame->contacts[i].minor_axis = _convertBytesTo16(rx_buf[offset+14],rx_buf[offset+15])/256.0f;
+      frame->contacts[i].x_pos = _convertBytesToU16(rx_buf[offset+2],rx_buf[offset+3])/256.0f;
+      frame->contacts[i].y_pos = _convertBytesToU16(rx_buf[offset+4],rx_buf[offset+5])/256.0f;
+      frame->contacts[i].total_force = _convertBytesToU16(rx_buf[offset+6],rx_buf[offset+7])/8.0f;
+      frame->contacts[i].area = _convertBytesToU16(rx_buf[offset+8],rx_buf[offset+9])/1.0f;
+      frame->contacts[i].orientation = _convertBytesToS16(rx_buf[offset+10],rx_buf[offset+11])/16.0f;
+      frame->contacts[i].major_axis = _convertBytesToU16(rx_buf[offset+12],rx_buf[offset+13])/256.0f;
+      frame->contacts[i].minor_axis = _convertBytesToU16(rx_buf[offset+14],rx_buf[offset+15])/256.0f;
     }
   }
   else{
