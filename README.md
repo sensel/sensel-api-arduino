@@ -1,3 +1,5 @@
+#ALPHA RELEASE. Documentation to be added.
+
 # Sensel API Arduino
 
 The Sensel API Arduino allows users to communicate with Sensel devices from Arduino boards. 
