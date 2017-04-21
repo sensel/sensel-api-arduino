@@ -1,4 +1,4 @@
-#ALPHA RELEASE. Documentation to be added.
+# ALPHA RELEASE. Documentation to be added.
 
 # Sensel API Arduino
 
