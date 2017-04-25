@@ -24,14 +24,16 @@ SenselFrame frame;
 bool sensel_ready = false;
 
 void setup() {
-  senselInit();
+  senselOpen();
+  senselSetFrameContent(SENSEL_REG_CONTACTS_FLAG);
+  senselStartScanning();
   sensel_ready = true;
 }
 
 void loop() {
   if(sensel_ready)
   {
-    senselReadContacts(&frame);
-    senselPrintContacts(&frame);
+    senselGetFrame(&frame);
+    senselPrintFrame(&frame);
   }
 }

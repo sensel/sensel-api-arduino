@@ -24,21 +24,19 @@
 byte rx_buf[SENSEL_RX_BUFFER_SIZE];
 unsigned int counter = 0;
 
-void senselInit()
+void senselOpen()
 {
   SenselSerial.begin(115200);
   #ifdef SenselDebugSerial
     SenselDebugSerial.begin(115200);
   #endif
   delay(3000);
-  senselSetFrameContentControl(SENSEL_REG_CONTACTS_FLAG);
-  senselStartScanning();
   #ifdef SenselDebugSerial
-    SenselDebugSerial.println("Sensel Setup Complete!");
+    SenselDebugSerial.println("Sensel Open Complete!");
   #endif
 }
 
-void senselSetFrameContentControl(byte content)
+void senselSetFrameContent(byte content)
 {
   senselWriteReg(SENSEL_REG_FRAME_CONTENT_CONTROL, 1, content);
 }
@@ -119,8 +117,7 @@ void _senselFlush()
   SenselSerial.flush();
 }
 
-//Return the number of contacts
-void senselReadContacts(SenselFrame *frame)
+void senselGetFrame(SenselFrame *frame)
 {
   counter = 0;
   SenselSerial.write(0x81);
@@ -170,7 +167,7 @@ void senselReadContacts(SenselFrame *frame)
   }
 }
 
-void senselPrintContacts(SenselFrame *frame){
+void senselPrintFrame(SenselFrame *frame){
   #ifdef SenselDebugSerial
     SenselDebugSerial.print("Num Contacts: ");
     SenselDebugSerial.println(frame->n_contacts);
