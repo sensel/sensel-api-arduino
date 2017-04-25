@@ -21,9 +21,13 @@
 #include "sensel.h"
 #include "sensel_register_map.h"
 
+//RX buffer for Sensel serial
 byte rx_buf[SENSEL_RX_BUFFER_SIZE];
+
+//Counter for RX buffer
 unsigned int counter = 0;
 
+//Open Sensel device on SenselSerial
 void senselOpen()
 {
   SenselSerial.begin(115200);
@@ -36,29 +40,34 @@ void senselOpen()
   #endif
 }
 
+//Set frame content for Sensel device, supports SENSEL_REG_CONTACTS_FLAG
 void senselSetFrameContent(byte content)
 {
   senselWriteReg(SENSEL_REG_FRAME_CONTENT_CONTROL, 1, content);
 }
 
+//Start scanning on Sensel device
 void senselStartScanning()
 {
   senselWriteReg(SENSEL_REG_SCAN_ENABLED, 1, 1);
 }
 
+//Stop scanning on a Sensel device
 void senselStopScanning()
 {
   senselWriteReg(SENSEL_REG_SCAN_ENABLED, 1, 0);
 }
 
+//Read all available data from SenselSerial
 void senselReadAvailable() {
   int len = SenselSerial.available();
   if (len > 0) {
-    SenselSerial.readBytes(&rx_buf[counter%256], len);
+    SenselSerial.readBytes(&rx_buf[counter%SENSEL_RX_BUFFER_SIZE], len);
     counter = (counter + len);
   }
 }
 
+//Write byte to register on Sensel device
 void senselWriteReg(byte addr, byte sizeVar, byte data)
 {
   SenselSerial.write(0x01);
@@ -74,6 +83,7 @@ void senselWriteReg(byte addr, byte sizeVar, byte data)
   }
 }
 
+//Read byte array from register on Sensel device
 void senselReadReg(byte addr, byte sizeVar, byte* buf)
 {
   byte checksum = 0;
@@ -93,21 +103,25 @@ void senselReadReg(byte addr, byte sizeVar, byte* buf)
   SenselSerial.readBytes(&checksum, 1);
 }
 
+//Convert 4 bytes to a unsigned long
 unsigned long _convertBytesToU32(byte b0, byte b1, byte b2, byte b3)
 {
   return ((((unsigned long)b3) & 0xff) << 24) | ((((unsigned long)b2) & 0xff) << 16) | ((((unsigned long)b1) & 0xff) << 8) | (((unsigned long)b0) & 0xff);
 }
 
+//Convert 2 bytes to an unsigned int
 unsigned int _convertBytesToU16(byte b0, byte b1)
 {
   return ((((unsigned int)b1) & 0xff) << 8) | (((unsigned int)b0) & 0xff);
 }
 
+//Convert 2 bytes to a signed int
 int _convertBytesToS16(byte b0, byte b1)
 {
   return ((((int)b1)) << 8) | (((int)b0) & 0xff);
 }
 
+//Flush the SenselSerial of all data
 void _senselFlush()
 {
   while(SenselSerial.available() > 0) {
@@ -117,6 +131,7 @@ void _senselFlush()
   SenselSerial.flush();
 }
 
+//Read contact frame data from SenselSerial.
 void senselGetFrame(SenselFrame *frame)
 {
   counter = 0;
@@ -167,6 +182,7 @@ void senselGetFrame(SenselFrame *frame)
   }
 }
 
+//Print SenselFrame contact information
 void senselPrintFrame(SenselFrame *frame){
   #ifdef SenselDebugSerial
     SenselDebugSerial.print("Num Contacts: ");

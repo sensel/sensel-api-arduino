@@ -21,10 +21,16 @@
 #ifndef SENSEL_H
 #define SENSEL_H
 
+//Serial of the Sensel device
 #define SenselSerial Serial1
+
+//Serial for debug information
 #define SenselDebugSerial Serial
+
+//Max size for Sensel RX buffer
 #define SENSEL_RX_BUFFER_SIZE 512
 
+//Struct for Sensel contact information
 typedef struct __attribute__((__packed__))
 {
     byte id;
@@ -38,22 +44,28 @@ typedef struct __attribute__((__packed__))
     float minor_axis;
 } SenselContact;
 
+//Struct for Sensel frame, only contains contacts
 typedef struct __attribute__((__packed__))
 {
   byte n_contacts;
   SenselContact contacts[16];
 }SenselFrame;
 
+//Flag for enabling contact scanning
 const byte SENSEL_REG_CONTACTS_FLAG = 0x04;
 
+//Ack for read register
 const byte SENSEL_PT_READ_ACK = 1;
+
+//Ack for read variable size register
 const byte SENSEL_PT_RVS_ACK = 3;
+
+//Ack for write register
 const byte SENSEL_PT_WRITE_ACK = 5;
 
-const byte SENSEL_EVENT_CONTACT_INVALID = 0;
-const byte SENSEL_EVENT_CONTACT_START = 1;
-const byte SENSEL_EVENT_CONTACT_MOVE = 2;
-const byte SENSEL_EVENT_CONTACT_END = 3;
-
+const byte SENSEL_CONTACT_TYPE_INVALID = 0;
+const byte SENSEL_CONTACT_TYPE_START = 1;
+const byte SENSEL_CONTACT_TYPE_MOVE = 2;
+const byte SENSEL_CONTACT_TYPE_END = 3;
 
 #endif

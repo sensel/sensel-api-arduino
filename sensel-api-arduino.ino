@@ -20,20 +20,34 @@
 
 #include "sensel.h"
 
+//Frame struct for containing the contact array and number of contacts
 SenselFrame frame;
+
+//Whether the Sensel device has been initialized
 bool sensel_ready = false;
 
 void setup() {
+  //Open serial for SenselSerial declared in sensel.h
   senselOpen();
+  
+  //Set frame content to scan. No pressure or label support.
   senselSetFrameContent(SENSEL_REG_CONTACTS_FLAG);
+
+  //Start scanning the Sensel device
   senselStartScanning();
+
+  //Mark the Sensel device as ready
   sensel_ready = true;
 }
 
 void loop() {
+  //When ready, start reading frames
   if(sensel_ready)
   {
+    //Read the frame of contacts from the Sensel device
     senselGetFrame(&frame);
+
+    //Print the frame of contact data to SenselDebugSerial if defined
     senselPrintFrame(&frame);
   }
 }
